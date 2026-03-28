@@ -98,7 +98,7 @@ analyze_clpn_network <- function(
   }
   
   # Unified call to clpn_estimator
-  set.seed(123)
+  set.seed(2025)
   adjMat <- clpn_estimator(
     data = clpn_data, 
     t1_vars_base = t1_vars_base, 
@@ -150,7 +150,6 @@ analyze_clpn_network <- function(
   # 3b. Thresholded Network (for centrality calculation and final visualization)
   adjMat_noAR <- adjMat
   diag(adjMat_noAR) <- 0 # Remove self-loops for cross-lagged focus
-  
   net_clpn <- qgraph(
     adjMat_noAR,
     labels = t1_vars_base,  
@@ -161,12 +160,14 @@ analyze_clpn_network <- function(
     posCol = "darkgreen",  
     negCol = "red",  
     threshold = threshold_value,
-    label.cex = 0.8,  
+    label.cex = 0.8, 
+    layoutScale = c(0.9, 1),
+    legend.cex = 1.2,
     title = paste("Cross-Lagged Network (T1 -> T2)\nThreshold =", threshold_value)
   )
   
   pdf_file_final <- file.path(output_dir, "CLPN_Network.pdf")
-  pdf(pdf_file_final, width = 12, height = 10); plot(net_clpn); dev.off()
+  pdf(pdf_file_final, width = 20, height = 15); plot(net_clpn); dev.off()
   cat(paste0("Thresholded CLPN Network saved to: ", pdf_file_final, "\n"))
   
   ###### 4. Centrality Calculation and Plotting ######
@@ -181,22 +182,22 @@ analyze_clpn_network <- function(
   
   rownames(centrality_measures) <- t1_vars_base
   
-  bridge_results <- bridge(
-    net_clpn,
-    communities = item,
-    useCommunities = "all",
-    directed = NULL,
-    nodes = paste0(lognames, " (", node_names, ")"),
-    normalize = FALSE
-  )
-  
-  bridge_expected_influence <- bridge_results[["Bridge Expected Influence (1-step)"]]
-  names(bridge_expected_influence) <- t1_vars_base
+  # bridge_results <- bridge(
+  #   net_clpn,
+  #   communities = item,
+  #   useCommunities = "all",
+  #   directed = NULL,
+  #   nodes = paste0(lognames, " (", node_names, ")"),
+  #   normalize = FALSE
+  # )
+  # 
+  # bridge_expected_influence <- bridge_results[["Bridge Expected Influence (1-step)"]]
+  # names(bridge_expected_influence) <- t1_vars_base
   
   all_centrality <- data.frame(
     OutExpectedInfluence = centrality_measures$OutExpectedInfluence,
-    InExpectedInfluence = centrality_measures$InExpectedInfluence,
-    BridgeExpectedInfluence = bridge_expected_influence
+    InExpectedInfluence = centrality_measures$InExpectedInfluence
+    # BridgeExpectedInfluence = bridge_expected_influence
   )
   rownames(all_centrality) <- t1_vars_base
   
@@ -206,9 +207,11 @@ analyze_clpn_network <- function(
   node_names <- names(lognames)
   all_centrality_z$VariableLabel <- paste0(lognames, " (", node_names, ")")
   
-  # Sort in descending order of the size of BridgeExpectedInfluence
-  bridge_order <- order(all_centrality$BridgeExpectedInfluence, decreasing = TRUE)
-  all_centrality_z <- all_centrality_z[bridge_order, ]
+  # # Sort in descending order of the size of BridgeExpectedInfluence
+  # bridge_order <- order(all_centrality$BridgeExpectedInfluence, decreasing = TRUE)
+  # all_centrality_z <- all_centrality_z[bridge_order, ]
+  oei_order <- order(all_centrality$OutExpectedInfluence, decreasing = TRUE)
+  all_centrality_z <- all_centrality_z[oei_order, ]
   
   # Ensure that the VariableLabel is arranged in the order of BridgeExpectedInfluence
   all_centrality_z$VariableLabel <- factor(
@@ -218,25 +221,34 @@ analyze_clpn_network <- function(
   
   # Assign a position number (from 1 to 19, from top to bottom) to each variable
   all_centrality_z$Position <- seq_len(nrow(all_centrality_z))
+  # ===== Save standardized centrality scores (z-scored) =====
+  centrality_z_save <- all_centrality_z %>%
+    select(Variable, OutExpectedInfluence, InExpectedInfluence)
+  
+  write.csv(centrality_z_save,
+            file.path(output_dir, "centrality_OEI_IEI_zscore.csv"),
+            row.names = FALSE)
+  
+  cat("Standardized centrality (OEI/IEI/BEI) saved to: centrality_OEI_IEI_BEI_zscore.csv\n")
   
   all_centrality_long <- all_centrality_z %>%
     pivot_longer(
-      cols = c(OutExpectedInfluence, InExpectedInfluence, BridgeExpectedInfluence),
+      cols = c(OutExpectedInfluence, InExpectedInfluence),
       names_to = "Measure",
       values_to = "ZScore"
     ) %>%
     mutate(
       Measure = factor(Measure, 
-                       levels = c("OutExpectedInfluence", "InExpectedInfluence", "BridgeExpectedInfluence"),
-                       labels = c("Out-Expected Influence", "In-Expected Influence", "Bridge Expected Influence"))
+                       levels = c("OutExpectedInfluence", "InExpectedInfluence"),
+                       labels = c("Out-Expected Influence", "In-Expected Influence"))
     ) %>%
     arrange(Measure, Position)
   
 
   my_theme <- theme_minimal(base_size = 16) +
     theme(
-      axis.text.y = element_text(size = 14, hjust = 1, margin = margin(r = 5), color = "black"),
-      axis.text.x = element_text(size = 14, color = "black"),
+      axis.text.y = element_text(size = 16, hjust = 1, margin = margin(r = 5), color = "black"),
+      axis.text.x = element_text(size = 16, color = "black"),
       axis.title.x = element_text(margin = margin(t = 10), size = 15, color = "black"),
       axis.title.y = element_blank(),
       
@@ -275,8 +287,7 @@ analyze_clpn_network <- function(
 
     scale_shape_manual(
       values = c("Out-Expected Influence" = 16,
-                 "In-Expected Influence" = 17,
-                 "Bridge Expected Influence" = 15)
+                 "In-Expected Influence" = 17)
     )
   
   pdf_file <- file.path(output_dir, "plot_centrality_comparison.pdf")
@@ -305,7 +316,7 @@ analyze_clpn_network <- function(
   set.seed(7)
   boot_nonpara <- bootnet(net_boot, type = "nonparametric", nBoots = iter, communities = item,
                           directed = TRUE,
-                          statistics = c("edge", "outExpectedInfluence", "inExpectedInfluence", "bridgeExpectedInfluence"),
+                          statistics = c("edge", "outExpectedInfluence", "inExpectedInfluence"),
                           ncores = detectCores() - 1)
   
   # Plot edge CIs
@@ -324,8 +335,7 @@ analyze_clpn_network <- function(
   plot_centrality_clpn <- annotate_figure(ggarrange(
     plot(boot_nonpara, "outExpectedInfluence", plot = "difference", order = "sample") + theme(plot.title=element_text(hjust=0.5,size=5,face="bold")),
     plot(boot_nonpara, "inExpectedInfluence", plot = "difference", order = "sample") + theme(plot.title=element_text(hjust=0.5,size=5,face="bold")),
-    plot(boot_nonpara, "bridgeExpectedInfluence", plot = "difference", order = "sample") + theme(plot.title=element_text(hjust=0.5,size=5,face="bold")),
-    ncol=3, nrow=1, common.legend=FALSE)
+    ncol=2, nrow=1, common.legend=FALSE)
   )
   
   pdf_file_diff <- file.path(output_dir, "plot_boot_centrality.pdf")
@@ -337,11 +347,11 @@ analyze_clpn_network <- function(
   # 5b. Case-Dropping Bootstrap (CS-Coefficient and Centrality Stability)
   set.seed(79)
   boot_case <- bootnet(net_boot, type = "case", nBoots = iter, directed = TRUE, communities = item,
-                       statistics = c("bridgeExpectedInfluence", "edge", "outExpectedInfluence", "inExpectedInfluence"),
+                       statistics = c("edge", "outExpectedInfluence", "inExpectedInfluence"),
                        ncores = detectCores() - 1)
   
   # Plot centrality stability
-  plot_boot_case <- plot(boot_case, statistics = c("bridgeExpectedInfluence", "edge","outExpectedInfluence", "inExpectedInfluence")) + 
+  plot_boot_case <- plot(boot_case, statistics = c("edge","outExpectedInfluence", "inExpectedInfluence")) + 
     theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 12), 
           axis.text = element_text(size = 8), 
           axis.title = element_text(size = 8))
@@ -418,7 +428,9 @@ analyze_clpn_network <- function(
   adjMat_abs <- abs(adjMat_noAR)
   sorted_indices <- order(adjMat_abs, decreasing = TRUE)
   nonzero_edge_indices <- sorted_indices[adjMat_abs[sorted_indices] > 1e-10]
-  num_strongest_to_show <- min(30, length(nonzero_edge_indices)) # Show top 30 or all non-zero
+  # num_strongest_to_show <- min(30, length(nonzero_edge_indices)) # Show top 30 or all non-zero
+  # Show all non-zero
+  num_strongest_to_show <- length(nonzero_edge_indices)
   strongest_edge_indices <- nonzero_edge_indices[seq_len(num_strongest_to_show)]
   pos_indices <- arrayInd(strongest_edge_indices, dim(adjMat_noAR), useNames = TRUE)
   

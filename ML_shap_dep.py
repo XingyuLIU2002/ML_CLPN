@@ -5,6 +5,13 @@ import matplotlib.pyplot as plt
 import re
 import os
 from datetime import datetime
+# ===== 路径统一管理=====
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLOT_DIR = os.path.join(PROJECT_ROOT, "03_Output", "ml_dep", "plots_dep_cat")
+EXCEL_DIR = os.path.join(PROJECT_ROOT, "03_Output", "ml_dep", "output")
+
+os.makedirs(PLOT_DIR, exist_ok=True)
+os.makedirs(EXCEL_DIR, exist_ok=True)
 
 def clean_feature_name(name, variable_mapping=None):
     """Clean feature names and apply variable mapping if provided"""
@@ -64,9 +71,7 @@ def save_plot(filename, fig=None, dpi=600, flag_show=True):
     if fig is None:
         fig = plt.gcf()
     
-    os.makedirs("ml_dep/plots_dep_cat", exist_ok=True)
-    
-    full_filename = f"ml_dep/plots_dep_cat/{filename}.png"
+    full_filename = os.path.join(PLOT_DIR, f"{filename}.png")
     
     fig.savefig(full_filename, dpi=dpi, bbox_inches='tight', facecolor='white')
     print(f"Plot saved to: {full_filename}")
@@ -416,9 +421,7 @@ def save_shap_results_to_excel(importance_df, interpretation_df, shap_values_df=
     # Create timestamp for filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    os.makedirs("ml_dep/output", exist_ok=True)
-    
-    filename = f"ml_dep/output/{filename_prefix}_{timestamp}.xlsx"
+    filename = os.path.join(EXCEL_DIR, f"{filename_prefix}_{timestamp}.xlsx")
     
     # Create Excel writer
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:

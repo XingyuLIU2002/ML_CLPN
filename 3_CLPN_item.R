@@ -3,7 +3,7 @@ library(glmnet)
 library(qgraph)
 library(bootnet)
 library(NetworkComparisonTest)
-library(EGAnet)
+#library(EGAnet)
 library(mgm)
 library(networktools)
 library(ggplot2)
@@ -15,46 +15,48 @@ library(RColorBrewer)
 library(here)
 
 ################## Config ###############################
-set.seed(123)
-input_dir <- "INS_prediction/Input/df_all_ins.csv"
-output_base_dir <- "INS_prediction/Output/network_analysis"
-communities <- c('Loneliness', 'Insomnia', 'Somatic symptoms')
-var_extract <- c('loneliness', 'insomnia', 'somatic')
+setwd("D:/1.SJTU/MentalHealthProjects/ML_CLPN_Project")
+source("02_Programme/nw01_cleandata_item.R")
+source("02_Programme/nw02_basicnet_item.R")
+source("02_Programme/nw03_compare.R")
+source("02_Programme/nw04_CLPN_item.R")
+input_dir <- "D:/1.SJTU/MentalHealthProjects/ML_CLPN_Project/01_Input/df_all.csv"
+output_base_dir <- "03_output/network_analysis_item_level"
+communities <- c('Anxiety','Depression')
+var_extract <- c('anxiety', 'depression')
 var_mapping = list(
-  loneliness = "LON",
-  insomnia = "INS", 
-  somatic = "SOM"
+  anxiety = "ANX",
+  depression = "DEP"
 )
 
-community_colors <- brewer.pal(3, "Set2")
-communities_times <- c(6, 7, 6)  # 每个社区的变量数量
+community_colors <- c(
+  "#E8B3B3",  # Anxiety
+  "#AFC8E3"  # Depression
+)
+communities_times <- c(7, 9)  # 每个社区的变量数量
 
 lognames <- c(
-  "LON1" = "Feelings of loneliness",
-  "LON2" = "Lack of companionship",
-  "LON3" = "Sense of isolation",
-  "LON4" = "Social connection deficit",
-  "LON5" = "No one to confide in",
-  "LON6" = "Social isolation",
-  "INS1" = "Hard to fall asleep",
-  "INS2" = "Wake up at night and hard to sleep",
-  "INS3" = "Difficulty in getting up early",
-  "INS4" = "Poor sleep quality",
-  "INS5" = "Daytime fatigue",
-  "INS6" = "Sleep impacted life",
-  "INS7" = "Worried about the sleep",
-  "SOM1" = "Headache",
-  "SOM2" = "Nausea",
-  "SOM3" = "Fatigue",
-  "SOM4" = "Muscle pain",
-  "SOM5" = "Stomach ache",
-  "SOM6" = "Weakness"
+  "ANX1" = "Nervousness",
+  "ANX2" = "Uncontrolled worry",
+  "ANX3" = "Excessive worry",
+  "ANX4" = "Trouble relaxing",
+  "ANX5" = "Restlessness",
+  "ANX6" = "Irritability",
+  "ANX7" = "Feeling afraid",
+
+  "DEP1" = "Anhedonia",
+  "DEP2" = "Sad mood",
+  "DEP3" = "Sleep",
+  "DEP4" = "Fatigue",
+  "DEP5" = "Appetite",
+  "DEP6" = "Guilty",
+  "DEP7" = "Concentration",
+  "DEP8" = "Motor",
+  "DEP9" = "Suicide"
 )
 
 ################## Data prepare ###############################
 cat("Start the data cleaning process...\n")
-
-source(here("INS_prediction", "Program", "Network_cleandata.R"))
 
 data_prepared <- prepare_data(
   input_dir = input_dir,
@@ -74,10 +76,7 @@ clpn_data <- cbind(
 )
 
 ################## Cross-sectional Network analysis ############################
-
 cat("Start the complete network analysis process...\n")
-
-source(here("INS_prediction", "Program", "Network_basicnet.R"))
 
 # 1. 分析T1网络
 cat("=== Analyze T1 network ===\n")
@@ -117,59 +116,10 @@ nct_results <- compare_two_networks_nct(
   n_iter = 1000
 )
 
-################ simplely compare  ##############################
-# # 如果数据是数据框，转换为矩阵
-# t1_mat <- as.matrix(t1_data)
-# t2_mat <- as.matrix(t2_data)
-# 
-# # 检查列名
-# if (is.null(colnames(t1_mat))) {
-#   colnames(t1_mat) <- paste0("V", 1:ncol(t1_mat))
-# }
-# if (is.null(colnames(t2_mat))) {
-#   colnames(t2_mat) <- paste0("V", 1:ncol(t2_mat))
-# }
-# 
-# # 尝试使用最基本的参数
-# cat("使用NetworkComparisonTest...\n")
-# 
-# nct_result <- NCT(
-#   data1 = t1_mat,
-#   data2 = t2_mat,
-#   it = 10,  # 先用10测试
-#   # binary.data = FALSE,
-#   paired = TRUE,
-#   # estimator = "mgm",
-#   # estimatorArgs = list(
-#   #   type = type_vec,
-#   #   level = level_vec,
-#   #   lambdaSel = "EBIC",
-#   #   lambdaGam = 0.25
-#   # ),
-#   test.edges = TRUE,  # 先不测试边缘
-#   test.centrality = TRUE,  # 先不测试中心性
-#   # test.invariance = FALSE,  # 先不测试不变性
-#   verbose = TRUE
-# )
-# 
-# cat("NCT成功运行!\n")
-# cat("全局不变性p值:", nct_result$glstrinv.pval, "\n")
-# cat("网络不变性p值:", nct_result$nwinv.pval, "\n")
-# 
-# if (nct_result$glstrinv.pval < 0.05) {
-#   cat("结论: 网络存在显著差异 (p =", nct_result$glstrinv.pval, ")\n")
-# } else {
-#   cat("结论: 网络无显著差异 (p =", nct_result$glstrinv.pval, ")\n")
-# }
-
-
 ################## Cross-lagged Panel Network analysis ############################
 # 4. T1->T2交叉滞后网络分析
 cat("=== Cross-lagged Panel Network analysis of two waves ===\n")
-
-source(here("INS_prediction", "Program", "Network_CLPN.R"))
 clpn_output_dir <- file.path(output_base_dir, "CLPN")
-
 network_results <- analyze_clpn_network(
   t1_data = t1_data,
   t2_data = t2_data,
@@ -181,7 +131,3 @@ network_results <- analyze_clpn_network(
   threshold_value = 0.05,
   iter = 1000
 )
-
-
-
-
